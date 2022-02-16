@@ -7,8 +7,6 @@ library(magrittr)
 library(colorspace)
 library(glmmTMB)
 library(ggeffects)
-library(tidymv)
-library(GLMMadaptive)
 
 load(here::here("data/fish_processed_aggregated.rdata"))
 
@@ -245,9 +243,9 @@ season_mod_rich_pred <-
 #                  label = "***")
 (sg_div_figure <- 
     ggplot(sg_mod_div_pred) +
-    geom_violin(aes(x = insideSeagrass, y = hill_shannon),
+    geom_violin(aes(x = insideSeagrass, y = hill_shannon + 1),
                 size = 0.75) +
-    geom_boxplot(aes(x = insideSeagrass, y = hill_shannon,
+    geom_boxplot(aes(x = insideSeagrass, y = hill_shannon + 1,
                      color = insideSeagrass, fill = insideSeagrass),
                  width=0.1, alpha = 0.25) +
     labs(y = "Hill-Shannon Diversity") +
@@ -303,7 +301,7 @@ season_mod_rich_pred <-
     ggplot(season_mod_div_pred) +
     geom_boxplot(aes(x = month, fill = insideSeagrass, 
                      color = insideSeagrass, 
-                     y = hill_shannon),
+                     y = hill_shannon + 1),
                  alpha = 0.25) +
     labs(y = "Hill-Shannon Diversity") +
     ggsci::scale_color_d3() +

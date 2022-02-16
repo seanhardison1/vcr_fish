@@ -38,6 +38,9 @@ multigroup <-
         DHARMa:::plotQQunif(s)
         DHARMa:::plotResiduals(s)
       }
+    } else{
+      j <- update(as.psem(modelList), 
+                  data = data[data[, group] == i, ])
     }
     return(j)
     })

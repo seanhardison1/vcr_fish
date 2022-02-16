@@ -156,7 +156,6 @@ m_lm <-
 m_glmm <- glmer.nb(abundance ~ sg_pres + rt + 
                             (1|year),
                           data = mod_df)
-
 # summary(m_glmm)
 m_psem_abund <- psem(
   m_lm,
@@ -165,18 +164,6 @@ m_psem_abund <- psem(
 )
 summary(m_psem_abund)
 multigroup(m_psem_abund, group = "meadow", model_sim = T)
-
-m_psem_abund2 <- list(
-  m1 = glmer(sg_pres ~ ft + rt + depth + 
-                 (1|site) + (1|year),
-               family = "binomial",
-               data = mod_df,
-               control=glmerControl(optimizer="bobyqa", 
-                                    optCtrl=list(maxfun=1000000))),
-  m2 = glmer.nb(abundance ~ sg_pres + rt + 
-                  (1|year),
-                data = mod_df)
-)
 
 # Visualizing submodels----
 (depth_fig <- 

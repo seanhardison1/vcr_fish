@@ -84,6 +84,12 @@ m_lm <-
         data = mod_df,
         control=glmerControl(optimizer="bobyqa", 
                              optCtrl=list(maxfun=1000000)))
+
+# m_lm2 <- glmmTMB(sg_pres ~ ft + rt + depth + 
+#                    (1|site) + (1|year),
+#                  family = "binomial",
+#                  data = mod_df)
+
 # s <- simulateResiduals(m_lm, n = 1000);plot(s)
 
 # submodel 2----
@@ -120,4 +126,4 @@ m_psem_rich <- psem(
   data = mod_df
 )
 summary(m_psem_rich)
-multigroup(m_psem_rich, group = "meadow", model_sim = F)
+multigroup(m_psem_rich, group = "meadow", model_sim = T)
