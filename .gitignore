@@ -1,0 +1,9 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+data/V2_topobathy_tif.tif
+data/sav_cover.rdata
+data/dxv_blended
+data/Summers2014_2015_Fetch
+*.docx

@@ -1,0 +1,434 @@
+---
+output:
+ bookdown::word_document2:
+   reference_docx: "vcr-fish-template.docx"
+bibliography: vcr-fish.bib
+csl: ecology.csl
+---
+
+:::{custom-style="Title"}
+**Title**: Environmental context constrains ecosystem services in restored seagrass meadows
+:::
+
+:::{custom-style="Title"}
+**Running head**: Environmental context constrains ecosystem services
+:::
+
+<br>
+
+:::{custom-style="Author2"}
+**Authors**: Sean B. Hardison^1^*, Karen J. McGlathery^1^, and Max C.N. Castorani^1^  
+^1^Department of Environmental Sciences, University of Virginia, Charlottesville, VA 22904 USA
+:::
+
+<br>
+
+:::{custom-style="Author2"}
+**Author email addresses**:  
+SBH: sh5rs@virginia.edu  
+KJM:	kjm4k@virginia.edu  
+MCNC: castorani@virginia.edu
+:::
+
+:::{custom-style="Author2"}
+**Corresponding author**: Sean Hardison. Department of Environmental Sciences, University of Virginia, P.O. Box 400123, Clark Hall, 291 McCormick Rd., Charlottesville, VA 22904-4123, USA. Tel: 434-243-4949. Fax: 434-982-2137 
+:::
+
+\newpage
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,dpi=300,fig.width=5,warning = F, message = F,echo = F)
+library(ggeffects)
+library(flextable)
+library(patchwork)
+library(tsibble)
+library(tidyverse)
+library(mgcv)
+library(patchwork)
+library(gratia)
+library(ggtext)
+library(vegan)
+library(glmmTMB)
+library(sf)
+library(dream)
+library(lubridate)
+# load aggregated catch data and results in a couple of formats----
+load(here::here("data/fish_processed_aggregated.rdata"))
+load(here::here("data/sg_cover_mods_figs.rdata"))
+load(here::here("data/fish_processed_spatial.rdata"))
+load(here::here("data/spec_sg_figure.rdata"))
+
+# processing----
+fish <- fish_sf %>% 
+  sfc_as_cols(names = c("longitude","latitude")) %>% 
+  st_set_geometry(NULL) %>% 
+  mutate( meadow = str_extract(site, "(?:(?!_).)*"))
+fls <- 
+  fish_length_df %>% 
+  filter(!is.na(Length),
+         sciName %in% c("Anchoa spp.",
+    "Bairdiella chrysoura",
+    "Leiostomus xanthurus",
+    "Menidia menidia",
+    "Lagodon rhomboides",
+    "Syngnathus spp.")) %>% 
+    mutate(common = ifelse(sciName == "Anchoa spp.", "Anchovies",
+                           ifelse(sciName == "Bairdiella chrysoura", "Silver perch",
+                                  ifelse(sciName == "Menidia menidia", "Atl. silverside",
+                                         ifelse(sciName == "Lagodon rhomboides",
+                                                "Pinfish",
+                                                ifelse(sciName == "Syngnathus spp.",
+                                                       "Pipefish", 
+                                                       ifelse(sciName == "Leiostomus xanthurus",
+                                                       "Spot",NA)))))))
+lam <- 
+  tibble(common = c("Anchovies",
+                    "Silver perch",
+                    "Pinfish",
+                    "Spot",
+                    "Atl. silverside",
+                    "Pipefish"),
+         Length_min = c(3.5, 9.1, 11.0, 
+                        16.6, 9.1, 9.1),
+         Length_max = c(40 ,9.5, NA, 
+                        21.4, 9.8, 12.5),
+         Measure = c("SL", "SL", "SL", "TL", "TL","SL"),
+         alpha = c( 0.414, NA, -0.373, 0, NA, NA),
+         beta = c( 1.126, NA, 1.150, 1.194, NA, NA),
+         cite = c("Stevenson 1958; Zastrow et al. 1991",
+                  "Grammer et al. 2009",
+                  "Ohs et al. 2011",
+                  "ASFMC 2010",
+                  "Fay et al. 1983",
+                  "Ripley and Foran 2006 (min. SL for females for S. floridae)"),
+         LAM = ifelse(common %in% c("Anchovies", "Pinfish"),
+                                   alpha + beta * Length_min,
+                        Length_min))
+```
+
+## Abstract {-}
+
+Restoration is accelerating to address massive global declines in key habitats and recover lost ecosystem functions. However, there is uncertainty about the long-term capacity of restored ecosystems to provision habitat and increase biodiversity, and the degree to which these services are mediated by spatial and temporal variability. We addressed this gap in a restored seagrass ecosystem by sampling fish communities biannually for seven years (2012–2018) at 16 sites inside and outside of two rapidly-expanding eelgrass (*Zostera marina*) meadows in coastal Virginia, USA. Despite substantial among-year variation in fish abundance and species composition, seine catches in restored seagrass beds were consistently more numerous (6.4$\times$) and species rich (2.6$\times$) than adjacent unvegetated areas, particularly during summer (vs. fall). Juveniles were dominant in our collections, indicating that restored meadows can function as nursery habitats. Structural equation modeling revealed that, by constraining seagrass distributions, ocean water residence time indirectly reduced fish catches and species richness, and that fish community structure was largely consistent across meadows with varying degrees of restoration success. Together, our results indicate that seagrass restoration yields large and consistent benefits for coastal fishes, but that these restorations and their benefits are sensitive to the dynamic environments within which they reside.
+
+
+:::{custom-style="keywords"}
+**Keywords**: biodiversity; coastal oceanography; community ecology; eelgrass Zostera marina; foundation species; long term ecological research; nursery ground; restoration; seagrass; water residence time
+:::
+
+\newpage
+
+## Introduction {-}
+
+Human activities have led to global degradation of ecosystem structure and function over the past century [@ellison2005; @ellison2019; @barbier2011]. In response, ecological restorations have increasingly been investigated as tools for combating such declines [@guan2019], although there remains uncertainty regarding the long-term capacity of restored ecosystems to consistently provision ecosystem services [@lamb2018]. Restored ecosystems may fail to provision ecosystem services due to site-specific environmental constraints limiting the suitability of restored habitat for the community [@raposa2012; @england2018]. For example, the signs and magnitudes of nekton community responses to salt marsh habitat restoration on a regional scale are highly variable and site-dependent, potentially being masked by local-scale environmental variability and anthropogenic impacts [@raposa2012]. Similarly, while river restorations have been successful in restoring physical functioning to degraded waterways, these improvements are not always associated with the rehabilitation of associated macroinvertebrate communities that are subject to local- and catchment-scale environmental variability [@leps2016; @england2018]. Evaluating how these environmental constraints impact communities associated with restored habitats is therefore critical to maximizing the success of restorations and the ecosystem services they provide.
+
+Following massive and ongoing declines of seagrass meadows [@orth2006; @waycott2009], restoration has risen exponentially to recover these habitats and their benefits for coastal ecosystem structure and function [@duarte2020; @orth2020]. However, while numerous studies have supported the benefits of seagrass for fish and fisheries (e.g., @fonseca1996; @sheridan2004, @evans2005; @gillanders2007; @gilby2018; @orth2020), there is still uncertainty about  how spatial and temporal processes act hierarchically to mediate the long-term capacity of restored meadows to yield more numerous and diverse fish assemblages. Fish populations are highly variable over space and time [@wood2009; @auth2020; @woodland2021], and thus positive trends in fish abundance or diversity associated with seagrass restoration may be overwhelmed by large variations across seasons, among years, and over space in relation to environmental conditions, such as nearshore oceanography [@shanks2020]. Quantifying how and under what circumstances restored seagrass meadows enhance fish communities is valuable to guiding restoration, and is especially urgent as climate change intensifies a variety of factors that may have direct and indirect effects on coastal fishes, including ocean warming, sea level rise, and storm disturbance
+[@ummenhofer2017; @castorani2018; @vonBiela2019; @aoki2020]. 
+
+Seagrass restoration may be particularly beneficial to the juvenile stages of many fishes because meadows commonly function as nursery habitats [@heck2003; @lefcheck2019] that offer shelter from predation [@hindell2002; @smith2011] and enhance food availability [@nakamura2005; @alfaro2006]. Numerous coastal fishes recruit to seagrass meadows as larvae and often remain near meadows until maturity [@rooker1998; @asmfc2010; @faletti2019]. Seasonal recruitment results in distinct assemblages of juvenile fishes inhabiting meadows throughout the year [@rooker1998; @sobocinski2013]. Overlaid on these seasonal patterns are large year-to-year variations in recruitment due to variability in climate drivers, currents, and lower trophic level production among other factors [@wood2000; @woodland2021]. Further, within seagrass meadows, the distributions and diversities of fishes are vary spatially in response to meadow attributes [@yeager2011; @yeager2016] that are mediated by environmental context. For example, the density and patchiness of seagrass meadows are affected by wave exposure, current speed, and water depth [@fonseca1998; @carr2010; @uhrin2018], and these meadow characteristics contribute to the structure of associated fish communities [@yeager2011; @yeager2016]. However, studies have rarely considered the direct and indirect effects of abiotic conditions associated with the seagrass niche on fish communities explicitly [e.g., @giacomazzo2020].
+
+To address these gaps, we determined (1) how seagrass restoration affects fish abundance and biodiversity, (2) the extent to which this effect varies among seasons and years, and (3) the direct and indirect effects of spatial variation in abiotic conditions on eelgrass and the fish community. We carried out a uniquely long-term and spatially-replicated (seven years and 16 sites) study to characterize fish community dynamics across a rapidly-expanding restored eelgrass (*Zostera marina*) meadow in coastal Virginia, USA. Our findings indicate that despite pronounced seasonal and interannual variation, seagrass restoration can consistently improve fish abundance and diversity and restore important nursery habitat. Coastal water movement and bathymetry can indirectly constrain fish communities by mediating seagrass distributions, suggesting that climate-mediated coastal change may threaten the ecosystem services established through restoration. Consideration of how ecosystem service provisioning varies in response to direct and indirect environmental forcing will improve the utility and valuation of restoration projects in the future.
+
+<!-- Seagrass meadows have experienced widespread losses over the past century in response to a multitude of human-derived pressures [@waycott2009] including declines in water quality, extreme climate events such as marine heatwaves, and coastal development among others [@delossantos2019; @lefcheck2017; @arias2018; @aoki2020]. An increasingly common way to combat these losses is through seagrass restoration projects [@duarte2020]. Seagrass restorations are justified according to the assumption that the recovery of meadow habitat will also bring with it a wide range of ecosystem services, including the enhancement of biodiversity and provisioning of nursery habitat for economically important fishes. These claims have typically born out in the literature [e.g., @fonseca1996; @sheridan2004; @evans2005; @orth2020], but there remains uncertainty as to how the physical dynamics of the nearshore environment directly and indirectly affect the function of restored meadows as nursery habitats and in enhancing biodiversity within the context of a seasonally changing assemblage of fishes.  -->
+
+<!-- Seagrasses function as nursery habitats [@heck2003; @lefcheck2019] and increase the abundance and diversity of fish communities at nearby, non-seagrass structured habitats [@gilby2018]. In temperate latitudes, the seasonal recruitment of coastal fish larvae into seagrasses frequently forms a critical part of their life histories [@asmfc2010; @faletti2019], and recruits will often remain in close proximity to meadows until mature enough to migrate elsewhere to spawn [@faletti2019; @rooker1998]. Seasonal recruitment patterns result in distinct assemblages of juvenile fishes inhabiting meadows throughout the course of the year [@rooker1998; @sobocinski2013], with fishes taking advantage of the meadow canopy that functions to mitigate predation pressure [@hindell2002; @smith2011]. Further, seagrasses have been found to maintain higher densities of invertebrate prey species relative to other structured habitats like mangroves and coral reefs [@nakamura2005; @alfaro2006].  -->
+
+<!-- While these qualities make seagrasses attractive for larval and juvenile fishes, the extent and quality of seagrass habitat is highly constrained by environmental factors. In the case of temperate *Zostera marina* eelgrass, wave exposure, tidal current speed, and water depths control the density and patchiness of meadows [@fonseca1998; @carr2010; @uhrin2018]. Disturbance introduced through chronic exposure to high wind- and tidally-driven currents limits the vegetative spread and seedling colonization success of eelgrass, which in turn decreases landscape level meadow contiguity [@fonseca1998]. Furthermore, wave energy in eelgrass ecosystems can drive threshold behavior in areal patterns at the landscape scale [@fonseca1998; @uhrin2018]. For example, eelgrass in areas with low representative wave energy (< ~450 J m$^{-1}$) had elevated meadow percent cover and patch size relative to meadows exposed to higher wave energies [@uhrin2018]. Water depth also plays an important role in these threshold dynamics by bounding eelgrass growth at upper and lower depths according to exposure, nutrient and light availability [@carr2010]. Given the known effects of eelgrass habitat to enhance biodiversity and abundance of fishes, the relationships between eelgrass and the physical environment are likely to affect the fish community indirectly [@fonseca1998; @giacomazzo2020], and these relationships may change seasonally.  -->
+
+<!-- In this work, we first characterized the seasonal assemblages of fishes inside and outside of a restored *Zostera marina* eelgrass meadow in the coastal bays of Virginia (USA). We next applied piecewise structural equations models (SEM) to quantify the direct and indirect relationships between fish community abundance and diversity, the presence of eelgrass, and physical drivers of eelgrass distributions at the landscape scale. The goals of the analyses were a) to understand which species use the restored eelgrass habitat and at what stage of their life histories, and b) to characterize the direct and indirect effects of landscape-scale environmental forcing on eelgrass and coastal bay fish communities. Our findings indicate that the restored meadow fish community is seasonally dynamic, replete with juveniles, and that environmental controls on eelgrass distributions have direct and indirect effects on coastal bay fish communities. -->
+
+## Methods {-}
+
+### Study system {-}
+
+We conducted our study in a network of coastal lagoons along the Atlantic coastline of Virginia (USA) that together comprise the Virginia Coast Reserve Long Term Ecological Research (VCR LTER) site. The lagoons are generally shallow (0.5–2 m below mean sea level, MSL), but are punctuated by deep inlets connecting them to the Atlantic Ocean [@mcglathery2001; @oreska2021]. Salinities are frequently euhaline (> 30 PSU) in the coastal bays due to a lack of major rivers terminating along the Delmarva Peninsula to the west of the lagoons [@oreska2021]. Further, low nutrient input from agricultural run-off results in general oligotrophy and consistently high water quality [@anderson2010; @orth2012]. These factors combine to provide an estimated >100 km^2^ of suitable habitat for the dominant species of seagrass in the coastal bays, *Zostera marina* eelgrass [@oreska2021]. 
+
+However, eelgrass was extirpated from the coastal bays in the 1930s due to wasting disease and environmental stress, and was only reintroduced in 1997 after the discovery of small, naturally occurring eelgrass patches. The discovery of natural eelgrass spurred the creation of a large-scale, seed-based restoration program that since 1999 has deposited >70 million seeds in the coastal bays [@orth2012; @orth2020]. The total area of restored meadows now exceeds 36 km^2^, and the meadows have contributed to improvements in water quality, carbon and nitrogen sequestration, and finfish and epifaunal biomass and diversity [@lefcheck2017b; @oreska2020; @orth2020; @aoki2020]. 
+
+We focused on two bays studied by the VCR LTER (Fig. \@ref(fig:vcr-map)): South Bay (mean depth = -0.9 m MSL) and Hog Island Bay (mean depth = -1.9 m MSL). The two bays have similar tidal ranges at 1.32 m in South Bay and 1.24 m in Hog Island Bay [@mcglathery2012]. Aerial surveys [@moore2009] have shown that eelgrass cover expanded 83% in South Bay (from 10.7 km^2^ to 19.6 km^2^) and 80% in Hog Island Bay (1.8 km^2^ to 3.3 km^2^) from the start to end of our study (2012-2018). 
+
+Within the two bays, we used eelgrass presence to assess relationships between abiotic drivers, eelgrass, and the fish community. As the initial sampling design established eight sites inside and eight sites outside the meadows, we assumed that eelgrass was present or absent at these sites until noted otherwise in field data sheets. When unvegetated sites were overtaken by the growth of the meadow or eelgrass was lost from vegetated sites, we assumed that these altered states persisted at each site until another change was noted. 
+
+### Fish surveys {-}
+
+We sampled fish communities using beach seines (7.6 m long x 1.8 m tall; 1.5 m deep pocket with 6.4 mm mesh) pulled along 25 m transects in the summer (May or June) and fall (September or October) between 2012-2018. We counted, measured (total length, TL), and identified fish to the lowest possible taxon in the field prior to release, and all seine pulls occurred during the day and within 3 hr of low tide. We chose the initial locations of each seine site to be inside or outside of eelgrass meadows, with eight sites within both South and Hog Island Bays. Eelgrass growth at previously unvegetated sites in South Bay limited site access after summer 2015.
+
+Catches were analyzed in terms of catch per unit effort (CPUE), sample richness per catch and sample diversity per catch as Hill-Shannon diversity (D) [@hill1973]. Hill-Shannon diversity can be interpreted as an index of mean rarity, where a seine haul containing many species in low abundance (i.e., many rare species)  would have a larger Hill-Shannon diversity than a tow with few species in high abundance. D is given by 
+
+
+$$D = \exp\left({-\sum^S_{i = 1}p_i\textrm{ln}\left(p_i\right)}\right),$$
+
+where $p_i$ is the proportion of individuals belonging to species $i$ and $S$ is the number of species [@roswell2021].
+
+### Abiotic variables {-}
+
+To determine how the restored meadow fish community responded to changes in habitat type and environmental variability, we examined the direct and indirect effects of wind fetch, water residence times, and bathymetry on eelgrass presence and fish community abundance and sample richness. Specifically, we used piecewise SEMs (described below) to test the hypotheses that wind fetch, water residence times, and bathymetry would have direct effects on eelgrass presence, which would then mediate indirect effects between environmental variables and the fish community. Recent niche modeling work of *Z. marina* in the VCR identified wind fetch and water residence times as important predictors of the distribution of eelgrass recruits and survival, respectively [@oreska2021]. We chose to include bathymetry in SEMs because water depths constrain eelgrass growth through light limitation in deeper areas and exposure to disturbance in shallower areas [@mcglathery2012; @aoki2020]. We also tested the hypothesis that residence times would directly affect fish community abundance and richness, as sites closer to inlets may be more suitable for fishes due to the higher stability of abiotic conditions associated with more frequent tidal flushing [@martino2003].
+
+<!-- Recent niche modeling work of *Z. marina* in the coastal bays identified wind fetch and water residence times as the most important predictors of the distribution of eelgrass recruits and eelgrass survival, respectively [@oreska2021]. Water depth is also important in determining *Z. marina* distributions through light limitation in deeper water. Further, eelgrass in shallow areas is more susceptible to disturbance [@mcglathery2012; @aoki2020]. We included each of these three variables as exogenous predictors of eelgrass presence and/or fish community variables in piecewise SEMs (described below).  -->
+
+<!-- We expected wind fetch to correlate negatively with eelgrass presence and lead to indirect effects on fish community variables. Wind fetch contributes to wind waves driving sediment resuspension in this system [@lawson2007], with higher concentrations of resuspended sediments leading to unfavorable light conditions for eelgrass growth [@oreska2021]. However, @oreska2021 found that wind fetches were less important in determining eelgrass survival in meadow patches that had been successfully restored, but could play a role in preventing eelgrass seeds from settling in unvegetated areas due to strong currents. While moderate turbidity gradients associated with wind fetch may be beneficial for fishes in some cases [@bruton1985], we suspected that the landscape-scale index of wind fetch used in this study would be too coarse spatially and temporally to reveal such patterns. -->
+
+<!-- Water residence times in the coastal bays are largely driven by location relative to the oceanic inlets, where areas near inlets fall within a repletion footprint representing the area flushed within a single tidal cycle [@safak2015]. These more well-flushed areas tend to retain habitat characteristics that are favorable for eelgrass growth, such as larger sediment grain size and cooler water temperatures [@oreska2021]. As such, we expected residence times to correlate negatively with eelgrass presence. We also hypothesized a direct effect of residence time on fish community variables, as sampling sites closer to inlets may have more diverse and abundant communities relative to those further away on account of proximity the ocean, which forms the ultimate source of juvenile fish recruitment into the bays [@martino2003; @nanez2009]. -->
+
+<!-- Lastly, we hypothesized that light limitation associated with deeper waters and exposure to disturbance in shallower areas would negatively affect the probability of eelgrass occurrence [@mcglathery2012; @aoki2020]. However, due to the low variance of depths across our sampling sites, we did not suspect a direct effect of bathymetry on fish catch or diversity.  -->
+
+To create the wind fetch predictor, which is defined as the maximum distance wind may travel over water in a constant direction without obstruction, we extracted mean fetch within 150 m of seine sampling sites from averaged raster layers of fetch during the summers of 2014 and 2015 created by @kremer2021 following @rohweder2008. We followed a similar workflow to extract water residence times, which were developed by @safak2015 using a numerical coastal circulation model. In such models, residence time refers to the amount of time a simulated particle released at a particular location spends within a coastal bay before leaving through a tidal inlet [@safak2015]. We extracted depths within 150 m of each site using a bathymetric map of the coastal bays [@richardson2014]. 
+
+### Statistical analyses {-}
+
+We used generalized linear mixed models (GLMMs) to quantify the effects of seagrass (inside vs. outside) and season (summer vs. fall) on fish catch and diversity metrics. We controlled for site and year effects by modeling them as random intercept terms [@zuur2009], and dropped these terms from models if their variances were zero. Hill-Shannon diversities had a high frequency of ones due to catches where zero or one species of fish were caught, so we subtracted one from calculated catch diversities to model the data as zero-inflated. We used a negative binomial response distribution with a log link in community- and species-level models of CPUE, and a zero-inflated gamma distribution with a log link to model catch diversity. When comparing the catches of multiple species across habitats or seasons, we adjusted P values according to @benjamini1995. We assessed model residuals meeting expectations of dispersion, zero-inflation, the abundance of outliers, and residual normality via simulation using the *DHARMa* package [@hartig2017]. We fitted GLMMs using the *glmmTMB* R package [@brooks2017].
+
+We next applied permutational multivariate analysis of variance using distance matrices (PERMANOVA) to the fish catch data to test the hypothesis that fish community composition differed across sampling habitats [@anderson2005]. We log transformed catches according to $\textrm{log}(\textrm{CPUE}) + 1$ for CPUE > 0 within the community matrix and then converted the catch matrix to Bray-Curtis dissimilarities for hypothesis testing. We included sampling habitat, season, and year as model covariates, and restricted permutations (N = 5000) to sites (plots) within meadows (blocks). We used the *vegan* R package for these analyses [@oksanen2020].
+
+Lastly, we used piecewise SEMs to evaluate the strengths of relationships among direct and indirect predictors of CPUE and sample richness. SEMs are a class of modeling techniques that allow for testing hypotheses about causal relationships within multivariate systems [@grace2008]. Here we used piecewise SEMs because they provide for the inclusion of hierarchical data structures and non-Gaussian response distributions in evaluating model paths [@lefcheck2016]. For both SEMs of richness and catch, we first created path diagrams encoding hypothesized relationships between eelgrass presence, physical variables (fetch, residence time, and bathymetry) and fish community variables (CPUE, sample richness) (See **Physical Variables**). In addition, we included a path representing the effect of time since restoration on eelgass presence. We expected this relationship to vary based on the meadow where sampling occurred given the differential expansion of eelgrass in the two bays (see **Study System**; Fig. \@ref(fig:vcr-map)), and tested for this interaction using multigroup analysis.  Multigroup analysis is used to determine if path interactions with categorical variables (e.g., samples from Hog Island Bay or South Bay) better characterize the data than a single, global model alone (see https://jslefche.github.io/sem_book/multigroup-analysis.html). 
+
+We used Fisher's C to determine if the proposed model structures were appropriate given the data and that no important paths were excluded [@shipley2000; @lefcheck2016], where large P values derived from Fisher's C (P > 0.05) were indicative of a well-fitting model. We also simulated residuals from all models fitted within the multigroup routine to ensure that residual behavior from SEM submodels was reasonable. We modeled the probability of seagrass presence using a binomial GLMM, and modeled catch and richness using negative binomial and Poisson GLMMs, respectively. We fitted piecewise SEMs using the *piecewiseSEM* R package, and mixed models using *lme4* [@bates2015; @lefcheck2016].
+
+## Results {-}
+
+
+```{r, echo = F}
+# abundant species inside eelgrass meadows
+n_pipefish <- fish %>% filter(sciName == "Syngnathus spp.", 
+                              insideSeagrass == 1) %>% pull(nFish) %>% sum
+
+n_perch <- fish %>% filter(sciName == "Bairdiella chrysoura", 
+                              insideSeagrass == 1) %>% pull(nFish) %>% sum
+
+# abundant species outside eelgrass meadows
+n_ancho <- fish %>% filter(sciName == "Anchoa spp.", 
+                              insideSeagrass == 0) %>% pull(nFish) %>% sum
+
+n_silv <- fish %>% filter(sciName == "Menidia menidia", 
+                              insideSeagrass == 0) %>% pull(nFish) %>% sum
+
+# percentage of total catch accounted for by six most common taxa
+n_common_fish <- fish %>% filter(sciName %in% c("Syngnathus spp.", "Bairdiella chrysoura", "Anchoa spp.",
+                               "Menidia menidia", "Lagodon rhomboides", "Leiostomus xanthurus")) %>% 
+  pull(nFish) %>% 
+  sum
+
+percent_common_fish <- round(n_common_fish/sum(fish$nFish), 3) * 100
+
+# percentage fish collected in seagrass habitats
+percent_fish_in_seagrass <- fish %>% 
+  filter(insideSeagrass == 1) %>% 
+  pull(nFish) %>% 
+  sum(.)/sum(fish$nFish)
+
+# pinfish catch in june 2015
+j2015tot <- fish %>% filter(month(sampleDate) == 6, 
+                year == 2015) %>% pull(nFish) %>% sum
+j2015_pin <- fish %>% filter(month(sampleDate) == 6, year == 2015, 
+                sciName == "Lagodon rhomboides") %>% pull(nFish) %>% sum
+
+
+# pinfish catch in june 2016
+# fish %>% filter(month(sampleDate) == 6, year == 2016, 
+#                 sciName == "Lagodon rhomboides") %>% 
+#   pull(nFish) %>% 
+#   sum
+
+# silver perch catch in may 2017
+# fish %>% filter(month(sampleDate) == 5, year == 2017, 
+#                 sciName == "Bairdiella chrysoura") %>% 
+#   pull(nFish) %>% 
+#   sum
+
+# percent silver perch catch in may 2018
+m2018tot <- fish %>% filter(month(sampleDate) == 5, 
+                year == 2018) %>% pull(nFish) %>% sum
+
+m2018_per <-
+  fish %>% filter(month(sampleDate) == 5, year == 2018, 
+                sciName == "Bairdiella chrysoura") %>% 
+  pull(nFish) %>% 
+  sum
+```
+
+
+### Total fish CPUE and diversity {-}
+
+On average, total fish CPUE was 6.4 times greater inside than outside of seagrass meadows ($\chi^{2,1}$=59.14,  P < 0.001). Likewise, estimates of Hill-Shannon diversity were 3.9 times greater ($\chi^{2,1}$=4.68, P = 0.03), and estimates of species richness were 2.6 times greater ($\chi^{2,1}$=38.67, P = <0.001).
+
+### Community composition {-}
+
+Fish community composition differed significantly between vegetated and unvegetated habitats (SS = 5.86, Pseudo *F* = 19.69, P = 0.02). Inside of eelgrass meadows, pipefish (*Syngnathus spp.*) (N = `r n_pipefish`) and silver perch (*B. chrysoura*) (N = `r n_perch`) were the most common taxa. Outside of eelgrass meadows, anchovies (*Anchoa* spp.) (N = `r n_ancho`) and Atlantic silversides (*Menidia menidia*) (N = `r n_silv`) were most common. (Figs. \@ref(fig:catch-composition) and \@ref(fig:spec-level-cpue-fig)B). Together with pinfish (*Lagodon rhomboides*) and spot (*Leiostomus xanthurus*), these six taxa accounted for `r percent_common_fish`% of the total catch. 28 additional taxa comprised the remaining `r 100-percent_common_fish`% of catch outside (see Table S1 for complete list).
+
+Of the `r sum(fish$nFish)` fish collected over the 2012-2018 sampling period, `r round(percent_fish_in_seagrass,3)*100`% were collected in eelgrass habitats (Fig. \@ref(fig:cpue-div-fig)A). Significant species-level differences in mean CPUE between habitats were also evident in four of the six most common taxa. Species-specific pairwise comparisons showed that 11.7$\times$ more pinfish, 57$\times$ pipefish, 24.8$\times$ silver perch, and 14$\times$ spot were collected inside vs. outside of seagrass (All $\textrm{P}_{\textrm{adj.}}$ < 0.01; Fig. \@ref(fig:spec-level-cpue-fig)B).
+
+### Fish lengths {-}
+
+The mean length of fish over the sampling period was 75.9 mm, with a size range extending from 2.5 mm (Gobiidae) to 400 mm (bluespotted cornetfish, *Fistularia commersonii*). We found that the lengths of the majority of Atlantic silverside, pinfish, silver perch, and spot fell below respective lengths-at-maturity as indicated by the literature, suggesting that the majority of these fishes were juveniles or post-larvae (Fig. \@ref(fig:length-freqs)). 
+
+### Season and interannual variation in fish communities {-}
+
+Pairwise comparisons showed that CPUE during the summer months significantly exceeded those in the fall ($\chi^{2,1} = 7.45$, P < 0.01), and catch data suggested that this effect was mostly due to a decline in October CPUE rather than September (Fig. \@ref(fig:cpue-div-fig)A). In contrast, Hill-Shannon catch diversity was similar in the summer and fall (P = 0.8), although species-level models of catch across sampling seasons revealed strong within-year patterns in catch composition. Within the top six most collected taxa, we found that pipefish, pinfish, and spot were significantly more abundant in the summer rather than fall months (All $\textrm{P}_{\textrm{adj.}}$ < 0.001; Fig. \@ref(fig:spec-level-cpue-fig)A).
+
+We also identified strong patterns in between-year species abundances. For example, pinfish made up 69% of catch during June 2015, but were absent from collections in June 2016. Similar patterns emerged for silver perch catch. Silver perch were absent from May 2017 collections but made up 69% of catch in May 2018. Pipefish were the only taxa present across all years and sampling months, while Atlantic silversides were present in all sampling years and months except for October of 2018.
+
+### Landscape-scale environmental drivers {-}
+
+Fisher's C indicated that no paths were missing from SEMs modeling CPUE (C = 2.23, P = 0.9), but identified a missing path in the sample richness SEM between bathymetry and richness that we updated the model to include (C = 2.55, P = 0.64). Subsequent multigroup analyses showed that the effect of time since restoration on eelgrass presence was significantly different across meadows. In Hog Island Bay, the effect of time since restoration was negative ($\beta_{\textrm{unstd}.}$ = -0.41, SE = 0.2, P = 0.04), but the effect was positive and marginally significant in South Bay ($\beta_{\textrm{unstd}.}$ = 2.23, SE = 1.24, P = 0.07). 
+
+The other path coefficients directly affecting eelgrass presence were constrained to the global model and so did not change with sampling meadow, but identified important relationships between residence times ($\beta_{\textrm{unstd}.}$ = -3.7, SE = 1.38, P < 0.01) and bathymetry ($\beta_{\textrm{unstd}.}$ = 2.31, SE = 1.26, P = 0.07) with eelgrass presence. In the CPUE SEM, eelgrass presence was the most important contributor to CPUE ($\beta_{\textrm{unstd}.}$ = 1.82, SE = 0.23, P < 0.001), whereas residence times did not have an affect on catches. However, in the sample richness SEMs, eelgrass presence ($\beta_{\textrm{unstd}.}$ = 0.84, SE = 0.13, P < 0.001), residence times ($\beta_{\textrm{unstd}.}$ = -0.12, SE = 0.05, P = 0.02), and bathymetry ($\beta_{\textrm{unstd}.}$ = 0.16, SE = 0.07, P = 0.02) were each found to be significant contributors to sample richness.
+
+## Discussion {-}
+
+Using a spatially replicated (8 sites at 2 meadows) seven-year seine survey, we found that seagrass restoration was associated with large gains in fish CPUE and diversity. Catches in restored meadows were 6.4 times more abundant and 3.9 times more diverse, with substantial differences in community composition attributable to the presence of eelgrass habitat and seasonal patterns in abundance. We also found high interannual variability in the composition of the fish community, highlighting the importance of long-term sampling efforts in the evaluation of seagrass ecosystem services. Results from piecewise SEMs showed that meadow presence was driven by water residence times and bathymetry that directly and indirectly affected meadow fish communities. Further, we found that the persistence or loss of eelgrass over time varied across bays, reflecting distinct environmental conditions contributing to or constraining eelgrass growth.
+
+CPUE was on average significantly larger within restored eelgrass meadows than outside of meadows, supporting prior work documenting higher densities of fishes in seagrass meadows relative to other structured and unvegetated habitats [@orth1980; @heck1989; @arrivillaga1999; @gilby2018]. A higher abundance of seagrass-associated fishes in the summer months was likely due to sampling occurring within spawning and recruitment windows for a few key species that inhabit seagrass meadows as juveniles. For example, pinfish recruit to seagrass meadows from offshore spawning grounds between November-March [@faletti2019], and the most abundant taxa in our collections, the pipefish, migrate from offshore into estuaries during the spring and summer where brood-spawning occurs [@campbell1998]. We also documented spot in higher abundance in eelgrass meadows during the summer months, which aligns with the timing of spot larval migration from offshore into nearshore nurseries (October-May) [@asmfc2010]. 
+
+<!-- Silver perch were another species that we collected in higher abundance within the meadow, although catch was similar across seasons. This finding supports previous work from the Northern Gulf of Mexico identifying silver perch as permanent residents of estuaries with a peak spawning period between mid-March and June [@grammer2009]. While the number of Atlantic silverside collected within meadows greatly exceeded the number collected outside the meadow (333 inside vs 78 outside), we did not detect significant differences in CPUE across habitats or seasons. Taken together, these results suggest that catch of silver perch and Atlantic silverside likely did not contribute to seasonal differences in catch within eelgrass habitat. -->
+
+Length-frequency data for these fishes supported that the majority of collected pinfish and spot were juveniles, although the story was less clear for pipefish. Pipefish length-frequencies indicated the presence of two primary modes, which may be due in part to the presence of two species of pipefish, *Syngnathus fuscus* and *Syngnathus floridae*. These two species are common in this region and maintain distinct length-frequencies [@ripley2006]. While silver perch and Atlantic silverside may not have contributed strongly to seasonal differences in catch within the meadow, length-frequency data suggested that the majority of fish collected from these species were also juveniles. These findings support the hypothesis that the restored meadows function as nursery habitats for juvenile fishes, and the life histories of these species implies that a large portion of community biomass will be exported to the continental shelf annually (i.e., pinfish, pipefish, Atlantic silverside, spot) [@conover1982]. Through this pathway, the restored meadows would contribute to regional food webs and fisheries through fish biomass provisioning [@heck2008].
+<!-- However, we recognize that our study only evaluated one aspect of the commonly accepted definition of a nursery habitat, i.e., a habitat contributing to the density, growth, and survival of juveniles [@beck2001; @lefcheck2019], and so more work is necessary to definitively determine if these habitats are functioning as nurseries. -->
+
+Results from SEM multigroup analysis showed that the effects of eelgrass presence and environment on the diversity and abundance of the fish community remained the same in both Hog Island and South Bays. This result occurred despite the differential success of restoration in the two meadows, evidenced by the inverted trends in the probability of eelgrass occurrence through time in Hog Island (negative trend) and South Bays (positive trend). Although meadow coverage increased in both bays, areal expansion in South Bay was ~6$\times$ that of Hog Island Bay (Fig. \@ref(fig:vcr-map)). Further, it was not just the effect sizes that did not change between bays, as there was no significant difference in richness per sample or CPUE between them. This finding was surprising given that mean shoot density for sites in South Bay during the study period was 302 shoots m^-2^, whereas it was only 67 shoots m^-2^ in Hog Island Bay, suggesting that the sampling sites in the two bays retained unique structural environments. While we chose to use eelgrass presence in SEMs rather than shoot density because shoot density observations were limited to summer only and unavailable at some sites, these results suggested that the presence of eelgrass alone can be enough to restore eelgrass ecosystem function, in terms of enhancing juvenile fish abundance and community diversity, despite variable density characteristics. 
+
+However, eelgrass presence was not the only factor directly affecting the fish community, as both bathymetry and water residence times were found to affect sample richness directly: shallower sites with shorter residence times tended to be more species rich. This may have been due to a greater environmental stability afforded to sites with shorter residence times [@martino2003]. While water exchange with the coastal ocean has commonly been shown to create salinity gradients in estuarine environments that structure fish communities (e.g., @martino2003; @lefcheck2014), this lagoonal system is unique in that there is relatively little freshwater input and so the bays are largely euhaline [@oreska2021]. As such, it follows that fish communities structured along a residence time gradient would be responding to some other factors, such as water temperature or larval supply, that are influenced by the frequency of flushing, and in the case of water temperatures, are mediated by bathymetry [@aoki2020]. That direct paths between abiotic drivers and CPUE did not emerge in the CPUE SEM suggests that the community CPUE-eelgrass presence relationship was weighted heavily towards the most common species, most of which were most abundant within meadows (four of six most common taxa). With the exception of the brood-spawning *Syngnathus* spp., the abundances of these species may be less sensitive to local environmental conditions due to their capacity for dispersal across the meadow [@yeager2016].
+
+The SEMs also showed that the presence of eelgrass in the coastal bays was constrained by bay bathymetry and water residence times, which do vary by meadow and likely contributed to their differential expansion. We found a positive effect of bathymetry on the probability of eelgrass presence, i.e., a higher probability of eelgrass occurrence in shallow areas, which supported our original hypothesis. Water depth bounds eelgrass growth at upper and lower depths according to exposure, nutrient and light availability [@carr2010; @aoki2020]. Further, we identified a negative relationship between the probability of eelgrass occurrence and water residence times, suggesting a lower probability of eelgrass occurrence in areas with longer residence times. These results explain the differential success in eelgrass expansion and shoot densities between the two meadows: South Bay is a shallower, light-replete environment with shorter residence times than Hog Island Bay [@carr2010; @aoki2020; @oreska2021]. That areas with shorter residence are more suitable for eelgrass growth is supported by other work from this region indicating that these areas experience more frequent exchange with cooler waters from the coastal ocean and so may be less susceptible to disturbances like marine heatwaves [@oreska2021]. Further, shorter residence times are associated with larger sediment grain sizes [@wiberg2015] in the coastal bays that create favorable eelgrass growing conditions [@oreska2021]. 
+
+Our analyses revealed that the fish community in the restored eelgrass meadows of the coastal bays is comprised of a diverse and abundant community of fishes that are largely juveniles. These communities are highly variable both within and between years, and depend on landscape-scale environmental factors that contribute both directly and indirectly to community structure and abundance. These coastal bays and their associated barrier islands are highly dynamic, and it is their presence and movement that dictates the physical and oceanographic environment that the restored eelgrass meadows are subjected to. As such, it is critical to gain a holistic understanding of these ecosystems that integrates their complexities across spatial and temporal scales. 
+
+```{r vcr-map, fig.cap = "Fish sampling sites in Hog Island and South Bay eelgrass meadows inside the Virginia Coast Reserve (VCR) along the Atlantic coast of Virginia, USA. Point colors refer to the presence of seagrass at sampling sites when fish surveys began in 2012, although this designation does not align perfectly with the meadow boundary indicated by remotely sensed data (see bottom left inset). Blue points show sites that were vegetated in 2012, and orange points refer to sites that were unvegetated in 2012. The purple and grey shading shows the extent of VCR seagrasses in 2012 and 2018 respectively, with darker purple regions indicating overlap between eelgrass extents in the two years."}
+knitr::include_graphics(here::here("figures/vcr-map-edited.png"))
+```
+
+```{r cpue-div-fig, fig.width = 6, fig.height = 3, fig.cap = "Boxplots of aggregate CPUE (A) and Hill-Shannon diversity (B) from collections made inside and outside of eelgrass habitat by sampling month."}
+anova_fig1
+ggsave(anova_fig1, filename = here::here("figures/inside_outside.png"),
+       width = 9, height= 7)
+```
+
+```{r catch-composition, fig.cap = 'Catch per unit effort of the six most common taxa and all others ("Other") (A) shown with the annual proportional contribution of those taxa to aggregate CPUE (B) in the summer and fall months inside and outside of eelgrass meadows. Empty bars indicate a year-season-habitat combination where no samples were collected.',fig.width = 8, fig.height = 6, eval = T}
+cpue_vis <- 
+  fish %>% 
+  mutate(sciName = ifelse(!sciName %in% c("Syngnathus spp.",
+                                          "Bairdiella chrysoura",
+                                          "Menidia menidia",
+                                          "Anchoa spp.",
+                                          "Lagodon rhomboides",
+                                          "Leiostomus xanthurus"),
+                          "Other", sciName),
+         sciName = case_when(sciName == "Syngnathus spp." ~ "Pipefish",
+                             sciName == "Bairdiella chrysoura"~ "Silver perch",
+                             sciName == "Menidia menidia" ~ "Atlantic silverside",
+                             sciName == "Anchoa spp." ~ "Anchovies",
+                             sciName == "Lagodon rhomboides" ~ "Pinfish",
+                             sciName == "Leiostomus xanthurus" ~ "Spot",
+                             sciName == "Other" ~ "Other",
+                             TRUE ~ sciName)) %>%  
+  mutate(sciName = factor(sciName, 
+                          levels = c("Anchovies", "Atlantic silverside", 
+                                     "Pinfish","Pipefish","Silver perch",
+                                     "Spot","Other"))) %>% 
+  group_by(year, season, insideSeagrass) %>%
+  #get number of unique tows at each meadow per season per year
+  mutate(nTows = n_distinct(site)) %>% 
+  ungroup() %>% 
+  dplyr::select(year, season, insideSeagrass, sciName, nFish, nTows) %>% 
+  # filter(year == 2012, season == "fall", insideSeagrass == 1) %>% 
+  group_by(year, season, insideSeagrass, sciName) %>% 
+  dplyr::summarise(catch = sum(nFish),
+                   cpue = catch/unique(nTows),
+                   nTows = unique(nTows)) %>% 
+
+  group_by(year, season, insideSeagrass) %>% 
+  mutate(`Total CPUE` = sum(cpue),
+         `Cumulative CPUE (%)` = (cpue/`Total CPUE`) * 100) %>% 
+  dplyr::select(-`Total CPUE`) %>%
+  arrange(desc(`Cumulative CPUE (%)`)) %>% 
+  group_by(year) %>%
+  {. ->> cpue_vis2} %>% 
+  mutate(insideSeagrass = factor(ifelse(insideSeagrass == 1, "Eelgrass", "Unvegetated"),
+                                 levels = c("Eelgrass", "Unvegetated")),
+         cumsum = cumsum(`Cumulative CPUE (%)`),
+         season = factor(str_to_title(season), 
+                         levels = c("Summer","Fall"))) 
+
+# cpue_vis %>% 
+#   filter(year == 2012, insideSeagrass == "Eelgrass",
+#          season == "Summer") %>% 
+#   arrange(desc(cpue))
+
+# fish %>% 
+#   filter(year == 2012,
+#          sciName == "Anchoa spp.",
+#          insideSeagrass == 1,
+#          season == "summer") %>% 
+#   pull(nFish) %>% 
+#   sum
+
+top_cpue <- ggplot(data = cpue_vis) +
+  geom_bar(aes(x = year, 
+               y = `Cumulative CPUE (%)`, 
+               # group = year,
+               fill= sciName), 
+           stat = "identity",
+           position = "stack") +
+  facet_wrap(insideSeagrass~season, nrow = 2) +
+  ecodata::theme_facet() +
+  ggsci::scale_fill_jama() +
+  scale_y_continuous(expand = c(0.01, 0.01)) +
+  labs(y = "Catch composition (%)",
+       x = "Year",
+       fill = "Taxa") +
+  # guides(fill = F) +
+  theme(legend.text = element_markdown(),
+        axis.title = element_text(size = 14))
+# 
+top_abund <-
+  ggplot(data = cpue_vis) +
+  geom_bar(aes(x = year, y = cpue,
+               fill= sciName),
+           stat = "identity") +
+  facet_wrap(insideSeagrass~season, nrow = 2) +
+  ecodata::theme_facet() +
+  ggsci::scale_fill_jama() +
+  scale_y_continuous(expand = c(0.01, 0.01)) +
+  labs(y = "CPUE",
+       x = "Year",
+       fill = "Taxa") +
+  theme(legend.text = element_markdown(),
+        axis.title = element_text(size = 14))
+top_abund + top_cpue + 
+  plot_annotation(tag_levels = "A") +
+  plot_layout(guides = 'collect', nrow = 1) & theme(legend.position = 'bottom')
+
+```
+
+```{r spec-level-cpue-fig, fig.height = 3, fig.width = 6,  fig.cap = 'Mean CPUE for the six most commonly collected taxa in summer and fall months (A) and inside and outside of eelgrass habitat (B). Bars are 95\\% confidence intervals and asterisks indicate significance at the P < 0.05 ("*") or P < 0.01 ("**") levels after adjusting for multiple comparisons.'}
+spec_sg_fig
+```
+
+```{r length-freqs, fig.width=8, fig.height=4.5, fig.cap = "Length-frequencies of the six most common taxa in seine collections split into estimated life stages based on available lengths-at-maturity data. Life stage splits were based on total lengths-at-maturity for all taxa expect pipefish and silver perch, where length-length conversions were unavailable and so were reported as standard lengths-at-maturity. The pipefish length-at-maturity is the minimum reported for *Syngnathus floridae* females, the smaller of the two pipefish species present in this region, and for anchovies, the highly abundant bay anchovy, *Anchoa mitchilli*. See supplement for details."}
+fls %>% 
+   left_join(.,lam) %>% 
+   dplyr::mutate(season2 = factor(str_to_title(season),
+                                       levels = c("Summer","Fall")),
+                 stage = factor(ifelse(Length <= (LAM*10), "Juvenile", "Adult"))) %>% 
+ggplot() +
+  geom_histogram(aes(x = Length, fill = stage),
+                 binwidth = 5) +
+  facet_wrap(~common, scales = "free_x") +
+  scale_fill_manual(values = c("Juvenile" = "#925E9FFF",
+                            "Adult" = "#AD002AFF"))+
+  scale_x_continuous(expand = c(0.01, 0.01)) +
+  scale_y_continuous(expand = c(0.001, 0.001)) +
+  labs(x = "Total Length (mm)",
+       y = "Frequency",
+       fill = "Estimated life stage") +
+  ecodata::theme_facet() +
+  theme(legend.position = "bottom")
+```
+
+```{r sem-results, fig.cap = "Path diagrams for community-level CPUE (A) and sample richness (B). Unstandardized coefficients are reported next to paths where P < 0.1, with narrow dashed lines indicating non-significant paths. Bolded arrows with large dashes are significant at P < 0.1, and bolded arrows with large solid lines are significant at P < 0.05. Meadow-specific paths are shown in blue (Hog Island Bay) and orange (South Bay), respectively."}
+knitr::include_graphics(here::here("figures/vcr-fish-sem.png"))
+```
+
+## Data availability {-}
+
+All code and data used in these analyses is available at [https://github.com/seanhardison1/vcr_fish](https://github.com/seanhardison1/vcr_fish).
+
+## References {-}

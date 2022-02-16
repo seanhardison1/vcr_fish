@@ -1,0 +1,268 @@
+---
+output:
+ bookdown::word_document2:
+   reference_docx: "vcr-fish-template.docx"
+title: "Supplement to: Environmental context constrains ecosystem services in restored seagrass meadows"
+bibliography: vcr-fish.bib
+csl: ecology.csl
+---
+
+:::{custom-style="Title"}
+**Running head**: Environmental context constrains ecosystem services
+:::
+
+<br>
+
+:::{custom-style="Author2"}
+**Authors**: Sean B. Hardison^1^*, Karen J. McGlathery^1^, and Max C.N. Castorani^1^  
+^1^Department of Environmental Sciences, University of Virginia, Charlottesville, VA 22904 USA
+:::
+
+<br>
+
+:::{custom-style="Author2"}
+**Author email addresses**:  
+SBH: sh5rs@virginia.edu  
+KJM:	kjm4k@virginia.edu  
+MCNC: castorani@virginia.edu
+:::
+
+:::{custom-style="Author2"}
+**Corresponding author**: Sean Hardison. Department of Environmental Sciences, University of Virginia, P.O. Box 400123, Clark Hall, 291 McCormick Rd., Charlottesville, VA 22904-4123, USA. Tel: 434-243-4949. Fax: 434-982-2137 
+:::
+
+\newpage
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,dpi=300,fig.width=5,warning = F, message = F,echo = F)
+library(ggeffects)
+library(flextable)
+library(patchwork)
+library(tsibble)
+library(tidyverse)
+library(mgcv)
+library(patchwork)
+library(gratia)
+library(ggtext)
+library(vegan)
+library(glmmTMB)
+library(sf)
+library(dream)
+
+
+# load aggregated catch data in a couple of formats----
+load(here::here("data/fish_processed_aggregated.rdata"))
+load(here::here("data/sg_cover_mods_figs.rdata"))
+load(here::here("data/fish_processed_spatial.rdata"))
+
+# processing----
+fish <- fish_sf %>% 
+  sfc_as_cols(names = c("longitude","latitude")) %>% 
+  st_set_geometry(NULL) %>% 
+  mutate( meadow = str_extract(site, "(?:(?!_).)*"))
+```
+
+
+\renewcommand{\arraystretch}{1}
+```{r fish-abund-table}
+spec_names <- unique(fish$sciName)
+fams <- c("Sciaenidae", "Gobiidae", "Hemiramphidae")
+# Adds asterisks for italicizing species names
+out <- NULL
+for (i in 1:length(spec_names)){
+  
+  if (spec_names[i] %in% fams){
+      new <- spec_names[i]
+  } else if (str_detect(spec_names[i], "spp\\.")){
+      new <- paste0("\\textit{",str_split(spec_names[i], " ")[[1]][1],"} ",
+                    str_split(spec_names[i], " ")[[1]][2])
+  } else {
+      new <- paste0("\\textit{", spec_names[i], "}")
+  }
+  assign("out", rbind(out, tibble(sciName = spec_names[i],
+                                  speciesName_ital = new)))
+}
+
+## Summary statistics about abundances
+
+### Total fish
+total_fish <- fish %>% pull(nFish) %>% sum()
+
+### Top 10 by catch
+top_fish <- fish %>% 
+  group_by(sciName) %>% 
+  dplyr::summarise(abundance = sum(nFish)) %>% 
+  arrange(desc(abundance)) %>% 
+  mutate(perc_total = cumsum(abundance)/sum(abundance)) 
+
+### Percentage by habitat
+spec_frac <- fish %>% 
+  group_by(insideSeagrass) %>% 
+  dplyr::summarise(abundance = sum(nFish)) %>% 
+  pivot_wider(names_from = insideSeagrass, 
+              values_from = abundance) %>% 
+  dplyr::rename(Unvegetated = 1,
+                Eelgrass = 2) %>% 
+  mutate(unveg_frac = Unvegetated/(Unvegetated + Eelgrass),
+         veg_frac = 1 - unveg_frac)
+
+### Percentage by season
+seas_frac <- fish %>% 
+  group_by(season) %>% 
+  dplyr::summarise(abundance = sum(nFish)) %>% 
+  pivot_wider(names_from = season, 
+              values_from = abundance) %>% 
+    dplyr::rename(Fall = 1,
+                Summer = 2) %>% 
+  mutate(fall_frac = Fall/(Fall + Summer),
+         summ_frac = 1 - fall_frac)
+
+
+### Percentage by season + species
+seas_frac2 <- fish %>% 
+  group_by(season, sciName) %>% 
+  dplyr::summarise(abundance = sum(nFish)) %>% 
+  pivot_wider(names_from = season, 
+              values_from = abundance) %>%
+      dplyr::rename(Fall = 2,
+                Summer = 3) %>% 
+  mutate(fall_frac = Fall/(Fall + Summer),
+         summ_frac = 1 - fall_frac)
+
+# mean, min, and max length by species
+ln_df <- 
+  fish_length_df %>% 
+  group_by(sciName) %>% 
+  filter(!is.na(Length)) %>% 
+  dplyr::summarise(`Mean length (mm)` = round(mean(Length), 1),
+                   `Min. length (mm)` = round(min(Length)),
+                   `Max length (mm)` = max(Length))
+
+## Table: abundance by habitat
+fish %>% 
+  group_by(sciName, insideSeagrass) %>% 
+  dplyr::summarise(`Abundance` = sum(nFish)) %>% 
+  # left_join(.,out, by = "sciName") %>% 
+  ungroup() %>% 
+  dplyr::select(Abundance, `Fish taxa` = sciName, insideSeagrass) %>% 
+  pivot_wider(., names_from = insideSeagrass, values_from = "Abundance") %>% 
+    dplyr::rename(Unvegetated = 2,
+                Eelgrass = 3) %>%
+  mutate(tot = Unvegetated + Eelgrass) %>% 
+  arrange(desc(tot)) %>% 
+  dplyr::select(-tot) %>% 
+  left_join(.,ln_df, by = c("Fish taxa" = "sciName")) %>% 
+  ungroup() %>% 
+  janitor::adorn_totals(name = "Total",,,,-`Mean length (mm)`,
+                        -`Min. length (mm)`,-`Max length (mm)`) %>% 
+  flextable(.) %>%  
+  set_caption(., 
+              caption = "Catches inside and outside of eelgrass meadows with mean, minimum, and maximum lengths for all collected fishes.") %>% 
+  set_table_properties(layout = "autofit") %>% 
+  line_spacing(space = 0.8) %>% 
+  fontsize(size = 8.5)
+```
+
+<br>
+
+```{r, fig.width=8, fig.height=5.5, fig.cap = "NMDS plots from community analyses (stress = 0.23). The three plots are colored based on sample mappings to sampling habitat (A), sampling season (B), and year (C)."}
+knitr::include_graphics(here::here("figures/nmds_figs.png"))
+```
+
+<br>
+
+```{r mean-richness-and-abundnce, fig.cap = "Monthly mean CPUE (A) and species richness per tow (B) inside and outside of eelgrass meadows shown with 95\\% condidence intervals between 2012-2018. Means and confidence intervals estimated using zero-inflated GLMMs.",fig.width = 8, fig.height = 7}
+est_df <- 
+  specs_ran2 %>% 
+  mutate(ymon = yearmonth(sampleDate),
+         est_grp= factor(paste(ymon, insideSeagrass, sep = ","))) 
+
+mod_abund <- glmmTMB(abundance ~ est_grp, 
+                     family = "nbinom2", 
+                     ziformula = ~1, 
+                     data = est_df)
+# summary(mod_abund)
+mod_output_abund <- 
+  ggeffect(mod_abund) %>% 
+  as_tibble() %>%
+  .[[1]] %>% 
+  separate(.,x, into = c("ymon","insideSeagrass"), sep = ",") %>% 
+  as.data.frame()
+
+mod_rich <- glmmTMB(richness ~ est_grp, 
+                    family = "poisson", 
+                    ziformula = ~1, 
+                    data = est_df)
+mod_output_rich <- 
+  ggeffect(mod_rich) %>% 
+  as_tibble() %>%
+  .[[1]] %>% 
+  separate(.,x, into = c("ymon","insideSeagrass"), sep = ",") %>% 
+  as.data.frame()
+
+
+cpue_ts <-
+  mod_output_abund %>% 
+  mutate(ymon = yearmonth(ymon)) %>% 
+ggplot() +
+  geom_line(aes(x = ymon, 
+                y = predicted,
+                color = insideSeagrass,
+                group = insideSeagrass)) +
+  geom_point(aes(x = ymon, 
+                 y = predicted,
+                 color = insideSeagrass,
+                 group = insideSeagrass)) +
+  geom_errorbar(aes(x = ymon,
+                    color = insideSeagrass,
+                    ymin = conf.low,
+                    ymax = conf.high),
+                alpha = 0.5) +
+  ggsci::scale_color_d3() +
+  labs(x = "Time",
+       y = "Mean CPUE") +
+  dream::theme_fade() +
+  theme(axis.title.x = element_blank(),
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 14),
+        legend.title = element_blank(),
+        legend.position = "bottom")
+
+rich_ts <-
+  mod_output_rich %>% 
+  mutate(ymon = yearmonth(ymon)) %>% 
+ggplot() +
+  geom_line(aes(x = ymon, 
+                y = predicted,
+                color = insideSeagrass,
+                group = insideSeagrass)) +
+  geom_point(aes(x = ymon, 
+                 y = predicted,
+                 color = insideSeagrass,
+                 group = insideSeagrass)) +
+  geom_errorbar(aes(x = ymon,
+                    color = insideSeagrass,
+                    ymin = conf.low,
+                    ymax = conf.high),
+                alpha = 0.5) +
+  ggsci::scale_color_d3() +
+  labs(x = "Time",
+       y = "Mean sample richness") +
+  dream::theme_fade() +
+  theme(axis.title.x = element_blank(),
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 14),
+        legend.title = element_blank(),
+        legend.position = "bottom")
+
+cpue_ts + rich_ts + 
+  plot_layout(nrow = 2, guides = "collect") + 
+  plot_annotation(tag_levels = "A") & theme(legend.position = "bottom")
+``` 
+
+```{r eelgrass-prob, fig.height = 3, fig.width = 6, fig.cap="Marginal effects from the binomial GLMM modeling the probability of eelgrass presence in relation to bathymetry (A) and residence time (B)(i.e., the SEM submodel of eelgrass presence). The histograms extending from the top axes show the frequency of eelgrass presence during seining, and the bottom histograms show the frequency of eelgrass absence."}
+load(here::here("figures/eelgrass_sem_fig.rdata"))
+eelgrass_sem_fig &
+  theme(axis.title = element_text(size = 8))
+```
+
