@@ -266,3 +266,46 @@ eelgrass_sem_fig &
   theme(axis.title = element_text(size = 8))
 ```
 
+
+```{r richness-rt, fig.height = 5, fig.width = 8, fig.cap = "Sample richness against residence times across years. The observations nearest to zero hours were all from the South Bay meadow. "}
+mod_df <- specs_ran2 %>% 
+  mutate(ft = as.numeric(scale(ft)),
+         rt2 = rt,
+         rt = as.numeric(scale(rt)),
+         d2 = depth,
+         depth = as.numeric(scale(depth)),
+         canopy = log(canopy),
+         meadow = factor(ifelse(str_detect(site,
+                                           "HI"),"HI","SB")),
+         tsr = ifelse(str_detect(site, "SB"),
+                      year - 2001,
+                      year - 2006),
+         sg_pres = ifelse(insideSeagrass == "Seagrass",1,0),
+         season = factor(season),
+         year = factor(year),
+         meadow = factor(meadow),
+         site2 = factor(ifelse(str_detect(site, "SB_Bare"),
+                               "SB-bare", 
+                               ifelse(str_detect(site, "HI_Bare"),
+                                      "HI",
+                                      as.character(meadow)))),
+         site = factor(site)) %>% 
+  as.data.frame() 
+
+
+ggplot(mod_df) +
+  geom_point(aes(y = richness, x = rt2)) +
+  facet_wrap(~year) +
+  labs(x = "Residence time (hours)",
+       y = "Sample richness") +
+  theme_bw()
+```
+
+```{r depth-rt, fig.height = 5, fig.width = 8, fig.cap = "Sample richness against water depth (m NAVD 88) across years."}
+ggplot(mod_df) +
+  geom_point(aes(y = richness, x = d2, color = insideSeagrass)) +
+  facet_wrap(~year) +
+  labs(x = "Depth (m NAVD 88)",
+       y = "Sample richness") +
+  theme_bw()
+```

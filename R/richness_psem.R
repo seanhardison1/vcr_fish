@@ -36,7 +36,9 @@ load(here::here("data/fish_processed_aggregated.rdata"))
 source(here::here("R/multigroup.R"))
 mod_df <- specs_ran2 %>% 
   mutate(ft = as.numeric(scale(ft)),
+         rt2 = rt,
          rt = as.numeric(scale(rt)),
+         d2 = depth,
          depth = as.numeric(scale(depth)),
          canopy = log(canopy),
          meadow = factor(ifelse(str_detect(site,
@@ -53,7 +55,8 @@ mod_df <- specs_ran2 %>%
                                ifelse(str_detect(site, "HI_Bare"),
                                       "HI",
                                       as.character(meadow)))),
-         site = factor(site)) %>% 
+         site = factor(site),
+         insideSeagrass = factor(insideSeagrass)) %>% 
   as.data.frame() 
 
 # submodel 1----
@@ -108,7 +111,7 @@ m_lm <-
 m_glmm <- glmer(richness ~ sg_pres + rt + depth + (1|year),
                 family = "poisson",
                data = mod_df)
-
+performance::check_collinearity(m_glmm)
 # s <- simulateResiduals(m_glmm, n = 1000);plot(s)
 
 # m_psem_season <- psem(
@@ -126,4 +129,5 @@ m_psem_rich <- psem(
   data = mod_df
 )
 summary(m_psem_rich)
-multigroup(m_psem_rich, group = "meadow", model_sim = T)
+multigroup(m_psem_rich, group = "meadow", model_sim = F)
+multigroup(m_psem_rich, group = "insideSeagrass", model_sim = F)
