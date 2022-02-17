@@ -1,10 +1,11 @@
 library(raster)
 library(tidyverse)
 library(sf)
+library(magrittr)
 library(rnaturalearth)
 
+process_dem <- F
 # Load packages
-dem_raw <- raster("/Users/seanhardison/Documents/git/seagrass-landscape-metrics/data/V2_topobathy_tif.tif")
 load(here::here("data/sav_cover.rdata"))
 
 # sampling sites in 2012
@@ -28,18 +29,11 @@ vcr_poly <- st_read(here::here("data/vcr_poly3.kml")) %>%
   st_zm() %>% 
   as(., "Spatial")
 
-# process DEM
-dem <- mask( crop( dem_raw,y = extent(vcr_poly) ), vcr_poly)
-dem_resample <- aggregate(dem, fact = 5, fun = mean)
-reduced_dem <- dem_resample
-reduced_dem[reduced_dem > 0 ] <- NA
-
 # process sample sites
 sample_locs.df <- sample_locs %>% 
-  sf::st_transform(crs = st_crs(ncrs)) %>% 
-  # dream::sfc_as_cols(., names = c("Longitude","Latitude")) %>% 
-  # st_set_geometry(NULL) %>% 
-  # ungroup() %>% 
+  st_transform(st_crs("+proj=longlat +datum=WGS84 +no_defs")) %>% 
+  dream::sfc_as_cols(.,names = c("Longitude","Latitude")) %>% 
+  st_set_geometry(NULL) %>% 
   distinct() %>% 
   mutate(`Sampling Habitat` = ifelse(!str_detect(site, "Bare"),
                                      "Seagrass",
@@ -62,18 +56,28 @@ dem_bbox <- st_bbox(VCR_bb,
   st_transform(.,crs = st_crs(ncrs)) %>% 
   as_Spatial()
 
-# aggregate, reproject, get contours
-dem_crop <- crop(dem_resample, dem_bbox)
-dem_reproj <- raster::projectRaster(dem_crop,crs = ncrs) 
-land_dem <- dem_reproj
-# Remove all values in the DEM that are > 0 m elevation
-land_dem[land_dem < 0] <- NA
+if (process_dem){
+  dem_raw <- raster("/Users/seanhardison/Documents/git/seagrass-landscape-metrics/data/V2_topobathy_tif.tif")
+  # process DEM----
+  reduced_dem <- aggregate(mask(crop( dem_raw,y = dem_bbox), dem_bbox),
+                           fact = 5)
+  plot(reduced_dem)
+  land_dem <- reduced_dem
+  # Remove all values in the DEM that are > 0 m elevation
+  land_dem[land_dem < -0] <- NA
+  plot(land_dem)
+  
+  # convert DEM to polygon
+  sf_use_s2(FALSE)
+  rast_poly <- sf::st_as_sf(stars::st_as_stars(land_dem),
+                            as_points = FALSE, merge = TRUE) %>%
+    st_union()
+  rast_poly %<>% st_transform(st_crs("+proj=longlat +datum=WGS84 +no_defs"))
+  save(rast_poly, file = here::here("data/vcr_land_polygon.rdata"))
+} else {
+  load(here::here("data/vcr_land_polygon.rdata"))
+}
 
-# convert DEM to polygon
-sf_use_s2(FALSE)
-rast_poly <- sf::st_as_sf(stars::st_as_stars(land_dem),
-                          as_points = FALSE, merge = TRUE) %>%
-  st_union()
 
 #convert raster to df for plotting ocean
 sea_rast <- dem_reproj
@@ -88,15 +92,14 @@ EC_bb <- extent(c(xmin = xmin2, xmax = xmax2,
                   ymin = ymin2, ymax = ymax2))
 
 EC_bbox <- st_bbox(EC_bb,
-                   crs = 4326) %>% 
-  st_as_sfc() %>% 
-  st_transform(.,crs = st_crs(ncrs))
+                   crs = 4326) #%>% 
+  # st_as_sfc() %>% 
+  # st_transform(.,crs = st_crs(ncrs))
 
 shoreline_vis <- shoreline %>% 
-  st_transform(st_crs(ncrs)) %>% 
-  st_make_valid() %>% 
-  st_intersection(.,EC_bbox) %>% 
-  summarise()
+  st_crop(.,EC_bbox) %>% 
+  summarise() %>% 
+  st_transform(st_crs("+proj=longlat +datum=WGS84 +no_defs"))
 
 # visualize -------------------------------------------------------------------------
 land <- "#BDB76B"
@@ -106,34 +109,20 @@ sav_vis <- sav %>%
   dplyr::filter(DENSITY != 0, year %in% c(2012, 2018)) %>%
   group_by(year) %>% 
   summarise() %>% 
-  mutate(year = factor(year, levels = c(2012, 2018)))
-
-atl <- tibble(long = -74.25,
-              lat = 37,
-              text = "Atlantic Ocean")
-
-landmarks <- tibble(name = c("Hog Island\n Bay","South Bay"),
-                    y = c(24, 6.05),
-                    x = c(19.5,21))
+  mutate(year = factor(year, levels = c(2012, 2018))) %>% 
+  st_transform(st_crs("+proj=longlat +datum=WGS84 +no_defs"))
 
 ec_zoom <- ggplot() +
-  # geom_sf(data = shoreline_vis,
-  #         size = 0.5,
-  #         fill = "#BDB76B",
-  #         color = "transparent") +
-  geom_sf(data = dem_bbox %>%  as(.,"sf"),
+  geom_sf(data = shoreline_vis,
+          size = 0.5,
+          fill = "#BDB76B",
+          color = "transparent") +
+  geom_sf(data = dem_bbox %>%  
+            as(.,"sf") %>% 
+            st_transform(st_crs("+proj=longlat +datum=WGS84 +no_defs")),
           fill = "transparent",
           color = "black",
           size = 0.5) +
-  geom_text(data = atl,
-            aes(x = long,
-                y = lat,
-                label = text),
-            angle = 75,
-            size = 3,
-            color = "grey",
-            family = "Courier",
-            fontface = "italic") + 
   theme(rect = element_rect(fill = "transparent"),
         panel.grid.major = element_line(color = "transparent", linetype = 1),
         panel.background = element_rect(fill = "#E0FFFF", color = NA),
@@ -162,8 +151,8 @@ site_map <- ggplot() +
   geom_sf(data = sample_locs.df, aes(shape = `Sampling Habitat`),
              color = "black",
              size = 2.25, alpha = 0.5) +
-  coord_sf(xlim = c(-75.9, -75.69),
-           ylim = c(37.2, 37.45)) +
+    coord_sf(xlim = c(-75.9, -75.69),
+             ylim = c(37.2, 37.45)) +
   
   scale_x_continuous(expand = c(0.001,0.001)) +
   scale_y_continuous(expand = c(0.001,0.001)) +
@@ -190,15 +179,7 @@ site_map <- ggplot() +
        color = "Initial Sampling\n Habitat") +
   ylab("Latitude") +
   xlab("Longitude")
-site_map
-
-buffed_locs <- sample_locs %>% 
-  st_transform(.,crs = st_crs("+proj=utm +zone=18 +datum=WGS84 +units=m +no_defs")) %>% 
-  st_buffer(.,dist = 150) %>% 
-  st_transform(.,crs = st_crs("+proj=longlat +datum=WGS84 +no_defs"))
-site_map + 
-  coord_sf(c(xmin = -75.743, xmax = -75.703,
-             ymin = 37.4, ymax = 37.435))
+# site_map
 
 sb_inset <- 
   ggplot() + 
@@ -213,9 +194,6 @@ sb_inset <-
   geom_point(data = sample_locs.df, aes(x = Longitude, y = Latitude,
                                         color = `Sampling Habitat`),
              size = 2) +
-  # geom_sf(data = buffed_locs,
-  #         fill = "transparent",
-  #         color = "black") +
   coord_sf(xlim = c(-75.87,-75.845),
            ylim = c(37.235, 37.25)) +
   theme(rect = element_rect(fill = "transparent"),
