@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+<Document>
+	<name>SouthBay.kml</name>
+	<Style id="s_ylw-pushpin_hl01">
+		<IconStyle>
+			<scale>1.3</scale>
+			<Icon>
+				<href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+			</Icon>
+			<hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+		</IconStyle>
+	</Style>
+	<StyleMap id="m_ylw-pushpin21">
+		<Pair>
+			<key>normal</key>
+			<styleUrl>#s_ylw-pushpin002</styleUrl>
+		</Pair>
+		<Pair>
+			<key>highlight</key>
+			<styleUrl>#s_ylw-pushpin_hl01</styleUrl>
+		</Pair>
+	</StyleMap>
+	<Style id="s_ylw-pushpin002">
+		<IconStyle>
+			<scale>1.1</scale>
+			<Icon>
+				<href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+			</Icon>
+			<hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+		</IconStyle>
+	</Style>
+	<Placemark>
+		<name>SouthBay</name>
+		<styleUrl>#m_ylw-pushpin21</styleUrl>
+		<Polygon>
+			<tessellate>1</tessellate>
+			<outerBoundaryIs>
+				<LinearRing>
+					<coordinates>
+						-75.78616940616942,37.29146987493206,0 -75.80269543912419,37.29295517430137,0 -75.81861674452406,37.29414698628706,0 -75.83098635874693,37.29483100311508,0 -75.84644179551395,37.29463357767846,0 -75.861505368321,37.29444774101194,0 -75.87681290566941,37.29518709739963,0 -75.8935992283309,37.29187636203592,0 -75.89912962493779,37.27675495679817,0 -75.89905235202156,37.25965564669732,0 -75.90206142771703,37.23809233782725,0 -75.91798465727794,37.19273836213432,0 -75.87272849338812,37.19098135086245,0 -75.85800791451258,37.19065339561121,0 -75.83082573773305,37.18971377433538,0 -75.79650294147955,37.18771290000212,0 -75.79451871367876,37.19852717771835,0 -75.79311606276447,37.21305946883562,0 -75.79181964206596,37.23350449328638,0 -75.78725988297877,37.26293095427894,0 -75.78616940616942,37.29146987493206,0 
+					</coordinates>
+				</LinearRing>
+			</outerBoundaryIs>
+		</Polygon>
+	</Placemark>
+</Document>
+</kml>
