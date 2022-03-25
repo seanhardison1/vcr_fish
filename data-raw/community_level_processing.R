@@ -27,6 +27,7 @@ load(file.path(data.dir, "fish_processed_spatial.rdata"))
 load(file.path(data.dir, "biodiversity_table.rdata"))
 div_summ %<>%  dplyr::select(-speciesName_ital, -nFish)
 load(file.path(data.dir, "phys_vars.rdata"))
+load(here::here("data/sst_anom.rdata"))
 
 #remove geometry for ease of use
 fish <- fish_sf %>% 
@@ -85,6 +86,7 @@ specs_ran <-
                                           ifelse(str_detect(site, "HI_Bare"),
                                                  "HI-Bare",
                                                  as.character(meadow)))))) %>% 
+  left_join(.,sst_anom) %>% 
   as.data.frame() 
 
 # wide data
@@ -116,6 +118,7 @@ specs_wide <-
                                       as.character(meadow))))) %>% 
   {. ->> specs_wide2} %>% 
   ungroup() %>% 
+  left_join(.,sst_anom) %>% 
   dplyr::select(-n)
 
 
@@ -173,7 +176,8 @@ specs_ran2 <-
                                           "SB-bare", 
                                           ifelse(str_detect(site, "HI_Bare"),
                                                  "HI-Bare",
-                                                 as.character(meadow)))))) %>% 
+                                                 as.character(meadow)))))) %>%
+  left_join(.,sst_anom) %>% 
   left_join(.,phys_vars)
 
 

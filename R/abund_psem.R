@@ -12,6 +12,7 @@ library(glmmTMB)
 library(piecewiseSEM)
 library(lme4)
 library(lubridate)
+
 plot_pred <- function(cov = NULL, resp = NULL,
                       mod = NULL, mod_df, binom = T,
                       lab_x = NULL, lab_y = NULL,
@@ -139,7 +140,7 @@ mod_df <- specs_ran2 %>%
 # s <- simulateResiduals(m_lm_season, n = 1000);plot(s)
 
 m_lm <- 
-  glmer(sg_pres ~ ft + rt + depth + 
+  glmer(sg_pres ~ ft + rt + depth + prev_month_anom +
           (1|site) + (1|year),
         family = "binomial",
         data = mod_df,
@@ -153,17 +154,17 @@ m_lm <-
 #                           (1|site) + (1|year),
 #                         data = mod_df)
 # s <- simulateResiduals(m_glmm_meadow, n = 1000);plot(s)
-m_glmm <- glmer.nb(abundance ~ sg_pres + rt + 
+m_glmm <- glmer.nb(abundance ~ sg_pres + rt + prev_month_anom +
                             (1|year),
                           data = mod_df)
-# summary(m_glmm)
+summary(m_glmm)
 m_psem_abund <- psem(
   m_lm,
   m_glmm,
   data = mod_df
 )
 summary(m_psem_abund)
-multigroup(m_psem_abund, group = "meadow", model_sim = T)
+multigroup(m_psem_abund, group = "season", model_sim = F)
 
 # Visualizing submodels----
 (depth_fig <- 
@@ -184,6 +185,22 @@ multigroup(m_psem_abund, group = "meadow", model_sim = T)
 eelgrass_sem_fig <- 
   depth_fig + rt_fig +
   plot_annotation(tag_levels = "A")
+
+ggplot(mod_df) +
+  geom_point(aes(y = abundance, x = prev_month_anom, color = month))+
+  geom_smooth(aes(y = abundance, x = prev_month_anom, color = month),
+              method = "glm.nb") +
+  facet_wrap(~month) +
+  labs(x = "SST anomaly in previous month (°C)") +
+  theme_bw()
+
+ggplot(mod_df) +
+  geom_point(aes(y = abundance, x = prev_month_anom, color = month))+
+  geom_smooth(aes(y = abundance, x = prev_month_anom, color = month),
+              method = "glm.nb") +
+  facet_wrap(~season) +
+  labs(x = "SST anomaly in previous month (°C)") +
+  theme_bw()
 
 save(eelgrass_sem_fig,
        file = here::here("figures/eelgrass_sem_fig.rdata"))

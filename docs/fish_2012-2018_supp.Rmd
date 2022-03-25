@@ -303,7 +303,7 @@ ggplot(mod_df) +
 
 ```{r depth-rt, fig.height = 5, fig.width = 8, fig.cap = "Sample richness against water depth (m NAVD 88) across years."}
 ggplot(mod_df) +
-  geom_point(aes(y = richness, x = d2, color = insideSeagrass)) +
+  geom_point(aes(y = richness, x = d2)) +
   facet_wrap(~year) +
   labs(x = "Depth (m NAVD 88)",
        y = "Sample richness") +

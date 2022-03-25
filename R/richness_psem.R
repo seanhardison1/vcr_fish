@@ -57,7 +57,7 @@ mod_df <- specs_ran2 %>%
                                       as.character(meadow)))),
          site = factor(site),
          insideSeagrass = factor(insideSeagrass)) %>% 
-  as.data.frame() 
+  as.data.frame()
 
 # submodel 1----
 # m_lm_meadow <-
@@ -81,7 +81,7 @@ mod_df <- specs_ran2 %>%
 
 # submodel 1----
 m_lm <- 
-  glmer(sg_pres ~ ft + rt + depth + 
+  glmer(sg_pres ~ ft + rt + depth +
           (1|site) + (1|year),
         family = "binomial",
         data = mod_df,
@@ -111,7 +111,6 @@ m_lm <-
 m_glmm <- glmer(richness ~ sg_pres + rt + depth + (1|year),
                 family = "poisson",
                data = mod_df)
-performance::check_collinearity(m_glmm)
 # s <- simulateResiduals(m_glmm, n = 1000);plot(s)
 
 # m_psem_season <- psem(
@@ -128,6 +127,25 @@ m_psem_rich <- psem(
   m_glmm,
   data = mod_df
 )
+plot(m_psem_rich)
 summary(m_psem_rich)
-multigroup(m_psem_rich, group = "meadow", model_sim = F)
-multigroup(m_psem_rich, group = "insideSeagrass", model_sim = F)
+multigroup(m_psem_rich, group = "season", model_sim = F)
+
+
+ggplot(mod_df) +
+  geom_point(aes(y = richness, x = prev_month_anom, color = month))+
+  geom_smooth(aes(y = richness, x = prev_month_anom, color = month),
+              method = "glm",
+              method.args = list(family = "poisson")) +
+  facet_wrap(~month) +
+  labs(x = "SST anomaly in previous month (°C)") +
+  theme_bw()
+
+
+ggplot(mod_df) +
+  geom_point(aes(y = richness, x = prev_month_anom, color = month))+
+  geom_smooth(aes(y = richness, x = prev_month_anom),
+              method = "glm",
+              method.args = list(family = "poisson")) +
+  labs(x = "SST anomaly in previous month (°C)") +
+  theme_bw()

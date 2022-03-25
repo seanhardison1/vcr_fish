@@ -221,13 +221,10 @@ season_mod_rich_pred <-
 #                  abundance = 105,
 #                  label = "**")
 (sg_abund_figure <- 
-  ggplot(sg_mod_abund_pred) +
-  geom_violin(aes(x = insideSeagrass, y = abundance),
-              size = 0.75) +
+  ggplot(data = sg_mod_abund_pred) +
     geom_boxplot(aes(x = insideSeagrass, y = abundance,
-                     color = insideSeagrass, fill = insideSeagrass),
-                 width=0.1, alpha = 0.25) +
-  labs(y = "CPUE") +
+                    fill = insideSeagrass)) +
+  labs(y = "Catch per seine tow") +
   guides(color = "none",
          fill = "none") +
   ggsci::scale_color_d3() +
@@ -264,11 +261,9 @@ season_mod_rich_pred <-
 #                  label = "***")
 (sg_rich_figure <- 
     ggplot(sg_mod_rich_pred) +
-    geom_violin(aes(x = insideSeagrass, y = richness),
-                size = 0.75) +
     geom_boxplot(aes(x = insideSeagrass, y = richness,
-                     color = insideSeagrass, fill = insideSeagrass),
-                 width=0.1, alpha = 0.25) +
+                    fill = insideSeagrass),
+                width = 0.4) +
     labs(y = "Sample richness") +
     guides(color = "none",
            fill = "none") +
@@ -339,11 +334,10 @@ season_mod_rich_pred <-
 
 (anova_fig2 <- 
     sg_abund_figure + sg_rich_figure + 
-    mon_abund_figure + mon_rich_figure + plot_annotation(tag_levels = "A") + 
     plot_layout(guides = "collect") & theme(legend.position = "bottom"))
 
 ggsave(anova_fig2, filename = here::here("figures/inside_outside2.png"),
-       width = 9, height= 7)
+       width = 8, height= 4)
 
 save(anova_fig1,
      file = here::here("data/sg_cover_mods_figs.rdata"))
