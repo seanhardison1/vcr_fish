@@ -35,7 +35,7 @@ sg_mod_abund <-
 # summary(sg_mod_abund)
 # plot(ggpredict(sg_mod_abund))
 # ggpredict(sg_mod_abund) %>% as_tibble()
-# car::Anova(sg_mod_abund)
+car::Anova(sg_mod_abund)
 # dream::validate(list(sg_mod_abund))
 # s <- DHARMa::simulateResiduals(sg_mod_abund, n = 1000);plot(s)
 
